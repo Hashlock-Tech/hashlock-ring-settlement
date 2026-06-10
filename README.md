@@ -96,12 +96,12 @@ REPORT_GAS=true npx hardhat test
 ### Contract
 
 ```solidity
-// Create an ETH hop
-ringHTLC.createHopETH(ringId, hopId, receiver, hashlock, timelock);
+// Create an ETH hop — hopId MUST equal computeHopId(ringId, hopIndex, msg.sender, receiver)
+ringHTLC.createHopETH(ringId, hopId, hopIndex, receiver, hashlock, timelock);
 
 // Create an ERC20 hop (approve first)
 token.approve(address(ringHTLC), amount);
-ringHTLC.createHopERC20(ringId, hopId, receiver, token, amount, hashlock, timelock);
+ringHTLC.createHopERC20(ringId, hopId, hopIndex, receiver, token, amount, hashlock, timelock);
 
 // Withdraw with preimage
 ringHTLC.withdraw(hopId, preimage);
@@ -109,8 +109,9 @@ ringHTLC.withdraw(hopId, preimage);
 // Refund after timeout
 ringHTLC.refund(hopId);
 
-// View helpers
-ringHTLC.isRingSettled(ringId);
+// View helpers — derive expectedHopIds from the ring definition via
+// computeHopId; never accept the list from an untrusted party
+ringHTLC.isRingSettled(ringId, expectedHopIds);
 ringHTLC.getRingHopIds(ringId);
 ringHTLC.computeHopId(ringId, hopIndex, sender, receiver);
 ```

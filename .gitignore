@@ -6,3 +6,5 @@ typechain-types/
 coverage/
 .env
 *.log
+out-forge/
+lib/

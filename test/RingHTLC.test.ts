@@ -62,17 +62,17 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
           value: amt,
         });
       await ring
         .connect(bob)
-        .createHopETH(rId, h1, charlie.address, hashlock, now + 2400, {
+        .createHopETH(rId, h1, 1, charlie.address, hashlock, now + 2400, {
           value: amt,
         });
       await ring
         .connect(charlie)
-        .createHopETH(rId, h2, alice.address, hashlock, now + 1200, {
+        .createHopETH(rId, h2, 2, alice.address, hashlock, now + 1200, {
           value: amt,
         });
 
@@ -83,7 +83,7 @@ describe("RingHTLC", function () {
       await ring.withdraw(h1, preimage);
       await ring.withdraw(h2, preimage);
 
-      expect(await ring.isRingSettled(rId)).to.equal(true);
+      expect(await ring.isRingSettled(rId, [h0, h1, h2])).to.equal(true);
 
       // Verify statuses
       expect((await ring.hops(h0)).status).to.equal(2); // WITHDRAWN
@@ -102,7 +102,7 @@ describe("RingHTLC", function () {
       await expect(
         ring
           .connect(alice)
-          .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+          .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
             value: amt,
           })
       )
@@ -133,7 +133,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
           value: amt,
         });
 
@@ -170,13 +170,13 @@ describe("RingHTLC", function () {
       const tokenAddr = await token.getAddress();
       await ring
         .connect(alice)
-        .createHopERC20(rId, h0, bob.address, tokenAddr, amt, hashlock, now + 3600);
+        .createHopERC20(rId, h0, 0, bob.address, tokenAddr, amt, hashlock, now + 3600);
       await ring
         .connect(bob)
-        .createHopERC20(rId, h1, charlie.address, tokenAddr, amt, hashlock, now + 2400);
+        .createHopERC20(rId, h1, 1, charlie.address, tokenAddr, amt, hashlock, now + 2400);
       await ring
         .connect(charlie)
-        .createHopERC20(rId, h2, alice.address, tokenAddr, amt, hashlock, now + 1200);
+        .createHopERC20(rId, h2, 2, alice.address, tokenAddr, amt, hashlock, now + 1200);
 
       const bobBefore = await token.balanceOf(bob.address);
 
@@ -184,7 +184,7 @@ describe("RingHTLC", function () {
       await ring.withdraw(h1, preimage);
       await ring.withdraw(h2, preimage);
 
-      expect(await ring.isRingSettled(rId)).to.equal(true);
+      expect(await ring.isRingSettled(rId, [h0, h1, h2])).to.equal(true);
 
       // Bob received tokens from hop 0
       const bobAfter = await token.balanceOf(bob.address);
@@ -216,7 +216,7 @@ describe("RingHTLC", function () {
 
         await ring
           .connect(sender)
-          .createHopETH(rId, hId, receiver.address, hashlock, tl, {
+          .createHopETH(rId, hId, i, receiver.address, hashlock, tl, {
             value: amt,
           });
       }
@@ -227,7 +227,7 @@ describe("RingHTLC", function () {
         await ring.withdraw(hId, preimage);
       }
 
-      expect(await ring.isRingSettled(rId)).to.equal(true);
+      expect(await ring.isRingSettled(rId, hopIds)).to.equal(true);
     });
 
     it("verifies staggered timelocks (first hop longest, last hop shortest)", async function () {
@@ -253,7 +253,7 @@ describe("RingHTLC", function () {
 
         await ring
           .connect(sender)
-          .createHopETH(rId, hId, receiver.address, hashlock, tl, {
+          .createHopETH(rId, hId, i, receiver.address, hashlock, tl, {
             value: amt,
           });
       }
@@ -280,7 +280,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 1200, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 1200, {
           value: amt,
         });
 
@@ -302,7 +302,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 3600, {
           value: ethers.parseEther("1"),
         });
 
@@ -318,7 +318,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 1200, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 1200, {
           value: ethers.parseEther("1"),
         });
 
@@ -343,17 +343,17 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
           value: amt,
         });
       await ring
         .connect(bob)
-        .createHopETH(rId, h1, charlie.address, hashlock, now + 2400, {
+        .createHopETH(rId, h1, 1, charlie.address, hashlock, now + 2400, {
           value: amt,
         });
       await ring
         .connect(charlie)
-        .createHopETH(rId, h2, alice.address, hashlock, now + 1200, {
+        .createHopETH(rId, h2, 2, alice.address, hashlock, now + 1200, {
           value: amt,
         });
 
@@ -364,7 +364,7 @@ describe("RingHTLC", function () {
       await ring.refund(h1);
       await ring.refund(h0); // longest timeout last
 
-      expect(await ring.isRingSettled(rId)).to.equal(false);
+      expect(await ring.isRingSettled(rId, [h0, h1, h2])).to.equal(false);
 
       // All refunded
       expect((await ring.hops(h0)).status).to.equal(3);
@@ -381,7 +381,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 1200, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 1200, {
           value: ethers.parseEther("1"),
         });
 
@@ -406,7 +406,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 3600, {
           value: ethers.parseEther("1"),
         });
 
@@ -428,12 +428,12 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
           value: amt,
         });
       await ring
         .connect(bob)
-        .createHopETH(rId, h1, charlie.address, hashlock, now + 2400, {
+        .createHopETH(rId, h1, 1, charlie.address, hashlock, now + 2400, {
           value: amt,
         });
 
@@ -458,7 +458,7 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 3600, {
           value: ethers.parseEther("1"),
         });
 
@@ -477,14 +477,14 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, hId, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, hId, 0, bob.address, hashlock, now + 3600, {
           value: ethers.parseEther("1"),
         });
 
       await expect(
         ring
           .connect(alice)
-          .createHopETH(rId, hId, bob.address, hashlock, now + 3600, {
+          .createHopETH(rId, hId, 0, bob.address, hashlock, now + 3600, {
             value: ethers.parseEther("1"),
           })
       ).to.be.revertedWith("HopExists");
@@ -500,7 +500,7 @@ describe("RingHTLC", function () {
       await expect(
         ring
           .connect(alice)
-          .createHopETH(rId, hId, bob.address, hashlock, now + 3600, {
+          .createHopETH(rId, hId, 0, bob.address, hashlock, now + 3600, {
             value: 0,
           })
       ).to.be.revertedWith("NoValue");
@@ -516,7 +516,7 @@ describe("RingHTLC", function () {
       await expect(
         ring
           .connect(alice)
-          .createHopETH(rId, hId, bob.address, hashlock, now - 100, {
+          .createHopETH(rId, hId, 0, bob.address, hashlock, now - 100, {
             value: ethers.parseEther("1"),
           })
       ).to.be.revertedWith("BadTimelock");
@@ -532,7 +532,7 @@ describe("RingHTLC", function () {
       await expect(
         ring
           .connect(alice)
-          .createHopETH(rId, hId, ethers.ZeroAddress, hashlock, now + 3600, {
+          .createHopETH(rId, hId, 0, ethers.ZeroAddress, hashlock, now + 3600, {
             value: ethers.parseEther("1"),
           })
       ).to.be.revertedWith("BadReceiver");
@@ -563,12 +563,12 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
           value: ethers.parseEther("1"),
         });
       await ring
         .connect(bob)
-        .createHopETH(rId, h1, charlie.address, hashlock, now + 2400, {
+        .createHopETH(rId, h1, 1, charlie.address, hashlock, now + 2400, {
           value: ethers.parseEther("1"),
         });
 
@@ -587,18 +587,18 @@ describe("RingHTLC", function () {
 
       await ring
         .connect(alice)
-        .createHopETH(rId, h0, bob.address, hashlock, now + 3600, {
+        .createHopETH(rId, h0, 0, bob.address, hashlock, now + 3600, {
           value: ethers.parseEther("1"),
         });
       await ring
         .connect(bob)
-        .createHopETH(rId, h1, charlie.address, hashlock, now + 2400, {
+        .createHopETH(rId, h1, 1, charlie.address, hashlock, now + 2400, {
           value: ethers.parseEther("1"),
         });
 
       await ring.withdraw(h0, preimage);
 
-      expect(await ring.isRingSettled(rId)).to.equal(false);
+      expect(await ring.isRingSettled(rId, [h0, h1])).to.equal(false);
     });
   });
 });
