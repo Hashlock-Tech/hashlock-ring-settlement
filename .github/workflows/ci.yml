@@ -24,6 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # OpenZeppelin resolves via the node_modules remapping in foundry.toml
+      - run: npm ci
       - uses: foundry-rs/foundry-toolchain@v1
       - run: forge install foundry-rs/forge-std --no-git
       - run: forge test --match-path "test-forge/*" -vv
