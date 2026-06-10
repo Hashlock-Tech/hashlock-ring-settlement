@@ -13,7 +13,15 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * every hop — either the entire ring settles, or every participant refunds.
  *
  * Timelocks are staggered: the last hop expires first so refunds cascade
- * safely in reverse order if settlement fails.
+ * safely in reverse order if settlement fails. Withdraw is bounded by the
+ * hop timelock (audit HL-05), so withdraw and refund are temporally
+ * exclusive — the staggered gaps are the window in which earlier hops can
+ * still claim after a later hop's preimage reveal.
+ *
+ * NOTE (informational, audit HL-05): this contract hashes preimages with
+ * keccak256; the core HashLock HTLCs (EVM/Sui/BTC) use sha256. A hashlock
+ * from the main system will NOT validate here and vice versa — do not
+ * compose the two without a hash-function bridge.
  */
 contract RingHTLC is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -65,13 +73,20 @@ contract RingHTLC is ReentrancyGuard {
      * @notice Create an ETH-funded hop in a ring.
      * @param ringId    Unique ring identifier (computed off-chain by coordinator)
      * @param hopId     Deterministic hop ID = keccak256(ringId, hopIndex, sender, receiver)
+     * @param hopIndex  Position of this hop in the ring (binds hopId — audit HL-06)
      * @param receiver  Address that will receive funds on withdrawal
      * @param hashlock  keccak256(preimage) — shared across all hops in the ring
      * @param timelock  Unix timestamp after which sender can refund
+     * @dev   HL-06: hopId is verified against computeHopId(ringId, hopIndex,
+     *        msg.sender, receiver), so a hop slot is unforgeable — an outsider
+     *        cannot occupy another participant's expected hopId. Combined with
+     *        the expected-hop-set form of isRingSettled, junk hops created
+     *        under someone else's ringId cannot grief settlement detection.
      */
     function createHopETH(
         bytes32 ringId,
         bytes32 hopId,
+        uint8 hopIndex,
         address receiver,
         bytes32 hashlock,
         uint256 timelock
@@ -80,6 +95,11 @@ contract RingHTLC is ReentrancyGuard {
         require(receiver != address(0), "BadReceiver");
         require(timelock > block.timestamp, "BadTimelock");
         require(hops[hopId].status == HopStatus.INVALID, "HopExists");
+        // HL-06: enforce the deterministic hop ID the docs always promised
+        require(
+            hopId == keccak256(abi.encodePacked(ringId, hopIndex, msg.sender, receiver)),
+            "BadHopId"
+        );
 
         hops[hopId] = Hop({
             ringId: ringId,
@@ -104,6 +124,7 @@ contract RingHTLC is ReentrancyGuard {
     function createHopERC20(
         bytes32 ringId,
         bytes32 hopId,
+        uint8 hopIndex,
         address receiver,
         address token,
         uint256 amount,
@@ -115,6 +136,11 @@ contract RingHTLC is ReentrancyGuard {
         require(token != address(0), "UseETH");
         require(timelock > block.timestamp, "BadTimelock");
         require(hops[hopId].status == HopStatus.INVALID, "HopExists");
+        // HL-06: enforce the deterministic hop ID (see createHopETH)
+        require(
+            hopId == keccak256(abi.encodePacked(ringId, hopIndex, msg.sender, receiver)),
+            "BadHopId"
+        );
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -139,10 +165,17 @@ contract RingHTLC is ReentrancyGuard {
     /**
      * @notice Withdraw funds from a hop by revealing the preimage.
      * @dev    Anyone can call this — funds always go to the designated receiver.
+     *         HL-05: withdraw is bounded by the hop timelock (mirrors the core
+     *         EVM/Sui HTLCs), making withdraw and refund temporally exclusive.
+     *         Without the bound, both were valid simultaneously after expiry —
+     *         a first-tx-wins race that could leave a ring part-WITHDRAWN /
+     *         part-REFUNDED. The ring's staggered timelocks are exactly the
+     *         windows in which earlier hops can still claim after a reveal.
      */
     function withdraw(bytes32 hopId, bytes32 preimage) external nonReentrant {
         Hop storage hop = hops[hopId];
         require(hop.status == HopStatus.ACTIVE, "NotActive");
+        require(block.timestamp < hop.timelock, "Expired");
         require(keccak256(abi.encodePacked(preimage)) == hop.hashlock, "BadPreimage");
 
         hop.status = HopStatus.WITHDRAWN;
@@ -190,12 +223,29 @@ contract RingHTLC is ReentrancyGuard {
         return _ringHopIds[ringId].length;
     }
 
-    /// @notice Check if every hop in the ring has been withdrawn
-    function isRingSettled(bytes32 ringId) external view returns (bool) {
-        bytes32[] memory ids = _ringHopIds[ringId];
-        if (ids.length == 0) return false;
-        for (uint256 i = 0; i < ids.length; i++) {
-            if (hops[ids[i]].status != HopStatus.WITHDRAWN) return false;
+    /**
+     * @notice Check if every EXPECTED hop in the ring has been withdrawn.
+     * @param  ringId         The ring to check.
+     * @param  expectedHopIds The coordinator's full hop set for this ring
+     *                        (deterministic IDs from computeHopId).
+     * @dev    HL-06: the previous form iterated every hop ever pushed under a
+     *         ringId — an unauthenticated bytes32 — so any outsider could
+     *         append a self-funded junk hop and force the result false
+     *         forever. The caller now supplies its expected hop set; junk
+     *         hops under the same ringId are simply not consulted, and a
+     *         forged "expected" hop cannot exist because createHop* binds
+     *         hopId to (ringId, hopIndex, sender, receiver).
+     */
+    function isRingSettled(bytes32 ringId, bytes32[] calldata expectedHopIds)
+        external
+        view
+        returns (bool)
+    {
+        if (expectedHopIds.length == 0) return false;
+        for (uint256 i = 0; i < expectedHopIds.length; i++) {
+            Hop storage hop = hops[expectedHopIds[i]];
+            if (hop.ringId != ringId) return false;
+            if (hop.status != HopStatus.WITHDRAWN) return false;
         }
         return true;
     }
